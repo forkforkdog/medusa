@@ -388,9 +388,11 @@
                             <tr>
                                 <th>Function</th>
                                 <th>Total Calls</th>
-                                <th>Total Reverts</th>
+                                <th>Successes</th>
+                                <th>Reverts</th>
+                                <th>Success Rate</th>
                                 <th>Revert Rate</th>
-                                <th>Previous Rate</th>
+                                <th>Prev Success</th>
                                 <th>Change</th>
                             </tr>
                             {{range $functionName, $functionMetrics := $contractMetrics.FunctionRevertMetrics}}
@@ -403,7 +405,16 @@
                                     {{end}}
                                 </td>
                                 <td>{{$functionMetrics.TotalCalls}}</td>
-                                <td>{{$functionMetrics.TotalReverts}}</td>
+                                <td style="color: var(--success); font-weight: 500;">{{$functionMetrics.TotalSuccesses}}</td>
+                                <td style="color: var(--danger); font-weight: 500;">{{$functionMetrics.TotalReverts}}</td>
+                                <td class="revert-percentage">
+                                    <strong style="color: {{ if gt $functionMetrics.SuccessPct 0.9 }}var(--success){{ else if gt $functionMetrics.SuccessPct 0.5 }}var(--warning){{ else }}var(--danger){{ end }};">
+                                        {{percentageFmt $functionMetrics.SuccessPct}}
+                                    </strong>
+                                    <div class="progress-container">
+                                        <div class="progress-bar" style="width: {{percentageFmt $functionMetrics.SuccessPct}}; background-color: {{ if gt $functionMetrics.SuccessPct 0.9 }}var(--success){{ else if gt $functionMetrics.SuccessPct 0.5 }}var(--warning){{ else }}var(--danger){{ end }};"></div>
+                                    </div>
+                                </td>
                                 <td class="revert-percentage">
                                     {{percentageFmt $functionMetrics.Pct}}
                                     <div class="progress-container">
@@ -411,14 +422,18 @@
                                     </div>
                                 </td>
                                 <td class="revert-percentage">
-                                    {{percentageFmt $functionMetrics.PrevPct}}
+                                    {{if eq $functionMetrics.PrevSuccessPct 0.0}}
+                                        No prev. data
+                                    {{else}}
+                                        {{percentageFmt $functionMetrics.PrevSuccessPct}}
+                                    {{end}}
                                 </td>
                                 <td>
-                                    {{if eq $functionMetrics.PrevPct 0.0}}
+                                    {{if eq $functionMetrics.PrevSuccessPct 0.0}}
                                         N/A
                                     {{else}}
-                                        {{$change := percentageChangeOpt (floatPtr $functionMetrics.PrevPct) $functionMetrics.Pct}}
-                                        <span class="{{ if contains $change "Increased" }}change-positive{{ else if contains $change "Decreased" }}change-negative{{ else }}change-neutral{{ end }}">
+                                        {{$change := percentageChangeOpt (floatPtr $functionMetrics.PrevSuccessPct) $functionMetrics.SuccessPct}}
+                                        <span class="{{ if contains $change "Increased" }}change-negative{{ else if contains $change "Decreased" }}change-positive{{ else }}change-neutral{{ end }}">
                                             {{$change}}
                                         </span>
                                     {{end}}

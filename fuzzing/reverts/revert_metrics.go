@@ -36,10 +36,16 @@ type FunctionRevertMetrics struct {
 	TotalCalls uint `json:"totalCalls"`
 	// TotalReverts is the total number of times the function reverted.
 	TotalReverts uint `json:"totalReverts"`
+	// TotalSuccesses is the total number of successful calls (TotalCalls - TotalReverts).
+	TotalSuccesses uint `json:"totalSuccesses"`
 	// Pct is the percent of times a call to this function reverted
 	Pct float64 `json:"pct"`
+	// SuccessPct is the percent of times a call to this function succeeded
+	SuccessPct float64 `json:"successPct"`
 	// PrevPct is the percentage of total calls that reverted in the previous campaign.
 	PrevPct float64 `json:"prevPct"`
+	// PrevSuccessPct is the percentage of total calls that succeeded in the previous campaign.
+	PrevSuccessPct float64 `json:"prevSuccessPct"`
 	// RevertReasonMetrics holds the revert reason metrics for the function.
 	RevertReasonMetrics map[string]*RevertReasonMetrics `json:"revertReasonMetrics"`
 }
@@ -193,14 +199,21 @@ func (m *RevertMetrics) Finalize(other *RevertMetrics) {
 			otherContractRevertMetrics = other.ContractRevertMetrics[contractName]
 		}
 		for functionName, functionRevertMetrics := range contractRevertMetrics.FunctionRevertMetrics {
-			// Update the percentage
+			// Calculate total successes
+			functionRevertMetrics.TotalSuccesses = functionRevertMetrics.TotalCalls - functionRevertMetrics.TotalReverts
+
+			// Update the revert percentage
 			functionRevertMetrics.Pct = float64(functionRevertMetrics.TotalReverts) / float64(functionRevertMetrics.TotalCalls)
 
-			// Update the previous percentage if the function existed in the previous campaign
+			// Update the success percentage
+			functionRevertMetrics.SuccessPct = float64(functionRevertMetrics.TotalSuccesses) / float64(functionRevertMetrics.TotalCalls)
+
+			// Update the previous percentages if the function existed in the previous campaign
 			var otherFunctionRevertMetrics *FunctionRevertMetrics
 			if otherContractRevertMetrics != nil {
 				if otherFunctionRevertMetrics = otherContractRevertMetrics.FunctionRevertMetrics[functionName]; otherFunctionRevertMetrics != nil {
 					functionRevertMetrics.PrevPct = otherFunctionRevertMetrics.Pct
+					functionRevertMetrics.PrevSuccessPct = otherFunctionRevertMetrics.SuccessPct
 				}
 			}
 			for revertReason, revertReasonMetrics := range functionRevertMetrics.RevertReasonMetrics {
