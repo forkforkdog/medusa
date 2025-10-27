@@ -1,12 +1,28 @@
 package fuzzing
 
-import "math/big"
+import (
+	"math/big"
+	"sync"
+
+	"github.com/crytic/medusa/fuzzing/contracts"
+)
+
+// methodCallStats tracks call statistics for a single method
+type methodCallStats struct {
+	totalCalls   *big.Int
+	successCalls *big.Int
+}
 
 // FuzzerMetrics represents a struct tracking metrics for a Fuzzer run.
 type FuzzerMetrics struct {
 	// workerMetrics describes the metrics for each individual worker. This expands as needed and some slots may be nil
 	// while workers are initializing, as it corresponds to the indexes in Fuzzer.workers.
 	workerMetrics []fuzzerWorkerMetrics
+
+	// methodStats tracks per-method call statistics across all workers
+	methodStats map[contracts.ContractMethodID]*methodCallStats
+	// methodStatsLock protects concurrent access to methodStats
+	methodStatsLock sync.Mutex
 }
 
 // fuzzerWorkerMetrics represents metrics for a single FuzzerWorker instance.
@@ -36,6 +52,7 @@ func newFuzzerMetrics(workerCount int) *FuzzerMetrics {
 	// Create a new metrics struct and return it with as many slots as required.
 	metrics := FuzzerMetrics{
 		workerMetrics: make([]fuzzerWorkerMetrics, workerCount),
+		methodStats:   make(map[contracts.ContractMethodID]*methodCallStats),
 	}
 	for i := 0; i < len(metrics.workerMetrics); i++ {
 		metrics.workerMetrics[i].sequencesTested = big.NewInt(0)
@@ -101,4 +118,66 @@ func (m *FuzzerMetrics) WorkersShrinkingCount() uint64 {
 		}
 	}
 	return shrinkingCount
+}
+
+// RecordMethodCall records a call to a specific method with its success status.
+// This is thread-safe and can be called from multiple workers concurrently.
+func (m *FuzzerMetrics) RecordMethodCall(methodID contracts.ContractMethodID, success bool) {
+	m.methodStatsLock.Lock()
+	defer m.methodStatsLock.Unlock()
+
+	// Initialize stats for this method if it doesn't exist
+	if _, exists := m.methodStats[methodID]; !exists {
+		m.methodStats[methodID] = &methodCallStats{
+			totalCalls:   big.NewInt(0),
+			successCalls: big.NewInt(0),
+		}
+	}
+
+	// Increment total calls
+	m.methodStats[methodID].totalCalls.Add(m.methodStats[methodID].totalCalls, big.NewInt(1))
+
+	// Increment success calls if the call was successful
+	if success {
+		m.methodStats[methodID].successCalls.Add(m.methodStats[methodID].successCalls, big.NewInt(1))
+	}
+}
+
+// GetMethodStats returns a copy of the method statistics map.
+// Returns a map of method IDs to their total and successful call counts.
+func (m *FuzzerMetrics) GetMethodStats() map[contracts.ContractMethodID]*methodCallStats {
+	m.methodStatsLock.Lock()
+	defer m.methodStatsLock.Unlock()
+
+	// Create a deep copy to avoid concurrent access issues
+	statsCopy := make(map[contracts.ContractMethodID]*methodCallStats)
+	for methodID, stats := range m.methodStats {
+		statsCopy[methodID] = &methodCallStats{
+			totalCalls:   new(big.Int).Set(stats.totalCalls),
+			successCalls: new(big.Int).Set(stats.successCalls),
+		}
+	}
+	return statsCopy
+}
+
+// GetMethodCallCount returns the total number of calls for a specific method.
+func (m *FuzzerMetrics) GetMethodCallCount(methodID contracts.ContractMethodID) *big.Int {
+	m.methodStatsLock.Lock()
+	defer m.methodStatsLock.Unlock()
+
+	if stats, exists := m.methodStats[methodID]; exists {
+		return new(big.Int).Set(stats.totalCalls)
+	}
+	return big.NewInt(0)
+}
+
+// GetMethodSuccessCount returns the number of successful calls for a specific method.
+func (m *FuzzerMetrics) GetMethodSuccessCount(methodID contracts.ContractMethodID) *big.Int {
+	m.methodStatsLock.Lock()
+	defer m.methodStatsLock.Unlock()
+
+	if stats, exists := m.methodStats[methodID]; exists {
+		return new(big.Int).Set(stats.successCalls)
+	}
+	return big.NewInt(0)
 }

@@ -991,4 +991,78 @@ func (f *Fuzzer) printExitingResults() {
 
 	// Print our final tally of test statuses.
 	f.logger.Info("Test summary: ", colors.GreenBold, testCountPassed, colors.Reset, " test(s) passed, ", colors.RedBold, testCountFailed, colors.Reset, " test(s) failed")
+
+	// Print method call statistics
+	f.printMethodStatistics()
+}
+
+// printMethodStatistics prints per-handler call statistics showing total calls vs successful calls.
+func (f *Fuzzer) printMethodStatistics() {
+	// Get method statistics from metrics
+	methodStats := f.metrics.GetMethodStats()
+
+	// If there are no method stats, return early
+	if len(methodStats) == 0 {
+		return
+	}
+
+	// Print header
+	f.logger.Info("")
+	f.logger.Info(colors.Bold, "Handler Call Statistics:", colors.Reset)
+	f.logger.Info("Method Name | Total Calls | Successful Calls | Success Rate")
+	f.logger.Info("----------- | ----------- | ---------------- | ------------")
+
+	// Sort methods by name for consistent output
+	methodIDs := make([]string, 0, len(methodStats))
+	for methodID := range methodStats {
+		methodIDs = append(methodIDs, string(methodID))
+	}
+	sort.Strings(methodIDs)
+
+	// Print stats for each method
+	for _, methodIDStr := range methodIDs {
+		methodID := fuzzerTypes.ContractMethodID(methodIDStr)
+		stats := methodStats[methodID]
+
+		// Calculate success rate
+		var successRate float64
+		if stats.totalCalls.Uint64() > 0 {
+			successRate = float64(stats.successCalls.Uint64()) / float64(stats.totalCalls.Uint64()) * 100
+		}
+
+		// Print the method statistics with color-coded success rate
+		// (green for >90%, yellow for 50-90%, red for <50%)
+		if successRate >= 90 {
+			f.logger.Info(
+				fmt.Sprintf("%-50s", methodIDStr),
+				" | ",
+				colors.Bold, fmt.Sprintf("%11d", stats.totalCalls.Uint64()), colors.Reset,
+				" | ",
+				colors.Bold, fmt.Sprintf("%16d", stats.successCalls.Uint64()), colors.Reset,
+				" | ",
+				colors.GreenBold, fmt.Sprintf("%6.2f%%", successRate), colors.Reset,
+			)
+		} else if successRate >= 50 {
+			f.logger.Info(
+				fmt.Sprintf("%-50s", methodIDStr),
+				" | ",
+				colors.Bold, fmt.Sprintf("%11d", stats.totalCalls.Uint64()), colors.Reset,
+				" | ",
+				colors.Bold, fmt.Sprintf("%16d", stats.successCalls.Uint64()), colors.Reset,
+				" | ",
+				colors.Yellow, fmt.Sprintf("%6.2f%%", successRate), colors.Reset,
+			)
+		} else {
+			f.logger.Info(
+				fmt.Sprintf("%-50s", methodIDStr),
+				" | ",
+				colors.Bold, fmt.Sprintf("%11d", stats.totalCalls.Uint64()), colors.Reset,
+				" | ",
+				colors.Bold, fmt.Sprintf("%16d", stats.successCalls.Uint64()), colors.Reset,
+				" | ",
+				colors.RedBold, fmt.Sprintf("%6.2f%%", successRate), colors.Reset,
+			)
+		}
+	}
+	f.logger.Info("")
 }

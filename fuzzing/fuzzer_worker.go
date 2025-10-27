@@ -306,6 +306,22 @@ func (fw *FuzzerWorker) testNextCallSequence() (calls.CallSequence, []ShrinkCall
 		lastCallSequenceElement := currentlyExecutedSequence[len(currentlyExecutedSequence)-1]
 		fw.workerMetrics().gasUsed.Add(fw.workerMetrics().gasUsed, new(big.Int).SetUint64(lastCallSequenceElement.ChainReference.Block.MessageResults[lastCallSequenceElement.ChainReference.TransactionIndex].Receipt.GasUsed))
 
+		// Track method call statistics (total calls and successes)
+		if lastCallSequenceElement.Contract != nil {
+			method, methodErr := lastCallSequenceElement.Method()
+			if methodErr == nil && method != nil {
+				// Get the method ID
+				methodID := fuzzerTypes.GetContractMethodID(lastCallSequenceElement.Contract, method)
+
+				// Determine if the call was successful (not reverted)
+				executionResult := lastCallSequenceElement.ChainReference.MessageResults().ExecutionResult
+				success := executionResult != nil && !executionResult.Failed()
+
+				// Record the method call with its success status
+				fw.fuzzer.metrics.RecordMethodCall(methodID, success)
+			}
+		}
+
 		// If our fuzzer context is done, exit out immediately without results.
 		if utils.CheckContextDone(fw.fuzzer.ctx) {
 			return true, nil
