@@ -81,7 +81,7 @@ jobs:
           [ ! -f medusa-Windows-X64.tar.gz ] || mv medusa-Windows-X64.tar.gz medusa-win-x64.tar.gz
 
       - name: Sign artifact
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && runner.os != 'Windows'
         uses: sigstore/gh-action-sigstore-python@v3.1.0
         with:
           inputs: ./medusa-*.tar.gz
