@@ -3,8 +3,9 @@ FROM golang:1.23 AS medusa
 
 WORKDIR /src
 COPY . /src/medusa/
+# Use GOTOOLCHAIN=auto to automatically download and use Go 1.24+ as required by go.mod
 RUN cd medusa && \
-    go build -trimpath -o=/usr/local/bin/medusa -ldflags="-s -w" && \
+    GOTOOLCHAIN=auto go build -trimpath -o=/usr/local/bin/medusa -ldflags="-s -w" && \
     chmod 755 /usr/local/bin/medusa
 
 
